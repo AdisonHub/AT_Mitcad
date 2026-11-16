@@ -2,8 +2,8 @@
 # Windows installer: install rules and CPack. After a release build,
 #   cmake --build --preset dev --target package
 # (or `cpack --config build/dev/CPackConfig.cmake` in the build tree) makes
-#   mitcad-<version>-windows-x64.exe   NSIS installer (needs makensis)
-#   mitcad-<version>-windows-x64.zip   the same files without an installer
+#   mitcad-<version>-windows-<arch>.exe   NSIS installer (needs makensis)
+#   mitcad-<version>-windows-<arch>.zip   the same files without an installer
 # in the build directory. docs/development.md#windows-installer describes
 # the toolchain and tools/installer-windows-test.ps1 tests the result; the
 # target update-manifest signs a release for the automatic updates
@@ -146,7 +146,12 @@ set(CPACK_PACKAGE_VENDOR "MitCad developers")
 set(CPACK_PACKAGE_CONTACT "MitCad developers <devs@mitcad.org>")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(mitcad_package_name "mitcad-${PROJECT_VERSION}-windows-x64")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(ARM64|arm64|aarch64)$" OR CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "ARM64")
+  set(mitcad_windows_platform windows-arm64)
+else()
+  set(mitcad_windows_platform windows-x64)
+endif()
+set(mitcad_package_name "mitcad-${PROJECT_VERSION}-${mitcad_windows_platform}")
 set(CPACK_PACKAGE_FILE_NAME "${mitcad_package_name}")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "Mitcad")
 set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
@@ -206,7 +211,7 @@ else()
     COMMAND "$<TARGET_FILE:mitcad-release>" manifest
             --version "${PROJECT_VERSION}"
             --notes "${MITCAD_RELEASE_URL}/tag/v${PROJECT_VERSION}"
-            --asset windows-x64 "${CMAKE_BINARY_DIR}/${mitcad_installer}"
+            --asset ${mitcad_windows_platform} "${CMAKE_BINARY_DIR}/${mitcad_installer}"
                     "${MITCAD_RELEASE_URL}/download/v${PROJECT_VERSION}/${mitcad_installer}"
             --out "${CMAKE_BINARY_DIR}/update-manifest.json"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"

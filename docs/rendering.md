@@ -395,7 +395,9 @@ with an embedded XPC service and leased IOSurfaces instead; see
   objects go at once; the geometry and its shaders are deleted with a
   later change's reset, once Cycles' object manager has no change left
   to apply, that is once the render thread has built the scene without
-  them (`render-retired` in the worker's log).
+  them (`render-retired` in the worker's log). Windows ARM64 uses Cycles'
+  own CPU BVH because Embree 4.4 does not support Windows on ARM64
+  ([Embree issue 601](https://github.com/RenderKit/embree/issues/601)).
 - **Scene**: `RenderMode` sends the shown bodies (`OcctViewer::
   shownBodies`) as scene updates ([Scene updates](#scene-updates)), only
   while the model is idle (`MainWindow::whenIdle`), and again whenever the

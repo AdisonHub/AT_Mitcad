@@ -18,7 +18,7 @@ struct Text {
 QString platformName(const QString& platform) {
   const QString system = platform.section(QLatin1Char('-'), 0, 0);
   if (system == QStringLiteral("windows")) {
-    return QStringLiteral("Windows");
+    return platform == QStringLiteral("windows-arm64") ? QStringLiteral("Windows ARM64") : QStringLiteral("Windows");
   }
   if (system == QStringLiteral("linux")) {
     return QStringLiteral("Linux");

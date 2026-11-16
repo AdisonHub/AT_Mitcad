@@ -26,6 +26,7 @@ Usage:
                           [--browser PLATFORM ABI VERSION CEF FINGERPRINT FILE URL]...
                           --out FILE
       Signs each file as the download for its platform (windows-x64,
+      windows-arm64,
       linux-x64) at URL and writes the signed manifest. The date defaults
       to today (UTC), the expiry to 90 days from today. --keep-browser
       takes the web browser component's packages of an earlier release's

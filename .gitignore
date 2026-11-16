@@ -5,6 +5,7 @@ target/
 
 # vcpkg (manifest mode)
 vcpkg_installed/
+MITCAD_RELEASE_KEY.txt
 
 # Local development settings
 CMakeUserPresets.json

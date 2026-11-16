@@ -238,9 +238,18 @@ QString Installation::downloadPath(const QString& version) const {
       settings.setValue(kDownloadFolders, folders);
     }
   }
-  return QDir(folder).filePath((kind == Kind::MacBundle ? QStringLiteral("Mitcad-%1-macos-arm64.dmg")
-                                                        : QStringLiteral("mitcad-%1-windows-x64.exe"))
-                                   .arg(version));
+  QString filename;
+  if (kind == Kind::MacBundle) {
+    filename = QStringLiteral("Mitcad-%1-macos-arm64.dmg").arg(version);
+  } else {
+#if defined(_M_ARM64)
+    constexpr auto platform = "windows-arm64";
+#else
+    constexpr auto platform = "windows-x64";
+#endif
+    filename = QStringLiteral("mitcad-%1-%2.exe").arg(version, QString::fromLatin1(platform));
+  }
+  return QDir(folder).filePath(filename);
 }
 
 void Installation::removeLeftovers() const {

@@ -37,7 +37,7 @@ struct UpdateOffer {
 };
 
 // The platform of a manifest's assets in the user's terms: "Windows",
-// "Linux" or "macOS" for "windows-x64", "linux-x64", "macos-arm64" and
+// "Windows", "Windows ARM64", "Linux" or "macOS" for supported platforms and
 // the other architectures; empty for a platform it does not know.
 QString platformName(const QString& platform);
 

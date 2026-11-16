@@ -10,7 +10,7 @@
 #
 # Usage, in the Visual Studio x64 environment (cl, Ninja):
 #   tools\dev-env\msvc.cmd powershell -ExecutionPolicy Bypass -File tools\dev-env\build-cycles.ps1
-#     [-Prefix dir] [-Cuda [-CudaArch list]] [-Optix SDK]
+#     [-Prefix dir] [-Cuda [-CudaArch list]] [-Optix SDK] [-SkipRenderCheck]
 #
 # Without -Cuda Cycles has its CPU device only. -Cuda (mitcad#202,
 # docs/rendering.md "Devices") adds Cycles' NVIDIA CUDA device and its
@@ -55,7 +55,8 @@
 # Environment: MITCAD_RENDER_JOBS (parallel compile jobs, default 12),
 # MITCAD_CUDA_JOBS (parallel CUDA kernel compiles, default 3: each nvcc
 # needs about 2 GB), VCPKG_ROOT (default C:\dev\vcpkg).
-param([string]$Prefix = '', [switch]$Cuda, [string]$CudaArch = '', [string]$Optix = '')
+# -SkipRenderCheck skips the optional standalone Cycles render after the build.
+param([string]$Prefix = '', [switch]$Cuda, [string]$CudaArch = '', [string]$Optix = '', [switch]$SkipRenderCheck)
 
 $ErrorActionPreference = 'Stop'
 $Repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -91,7 +92,9 @@ if ($PSBoundParameters.ContainsKey('Optix')) {
 if (-not $Prefix) { $Prefix = if ($env:MITCAD_RENDER_DEPS) { $env:MITCAD_RENDER_DEPS } else { 'C:\dev\mitcad-render-deps' } }
 $Jobs = if ($env:MITCAD_RENDER_JOBS) { $env:MITCAD_RENDER_JOBS } else { '12' }
 $VcpkgRoot = if ($env:VCPKG_ROOT) { $env:VCPKG_ROOT } else { 'C:\dev\vcpkg' }
-$Triplet = 'x64-windows'
+$Triplet = if ($env:MITCAD_MSVC_ARCH -eq 'arm64') { 'arm64-windows' } else { 'x64-windows' }
+$HostTriplet = if ($env:MITCAD_MSVC_ARCH -eq 'arm64') { 'arm64-windows' } else { 'x64-windows' }
+$CyclesEmbree = if ($env:MITCAD_MSVC_ARCH -eq 'arm64') { 'OFF' } else { 'ON' }
 New-Item -ItemType Directory -Force $Prefix | Out-Null
 $Prefix = (Resolve-Path $Prefix).Path
 $Downloads = Join-Path $Prefix 'downloads'
@@ -102,7 +105,7 @@ $VcpkgInstalled = Join-Path $Prefix 'vcpkg_installed'
 foreach ($dir in $Downloads, $Src, $Build, $Install) { New-Item -ItemType Directory -Force $dir | Out-Null }
 
 if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue) -or -not (Get-Command ninja.exe -ErrorAction SilentlyContinue)) {
-  throw 'Run this in the Visual Studio x64 environment with Ninja (tools\dev-env\msvc.cmd).'
+  throw 'Run this in the Visual Studio environment for the target architecture with Ninja (tools\dev-env\msvc.cmd).'
 }
 
 # A native command; a failure stops the script. Its output goes to $Log
@@ -131,7 +134,12 @@ function Get-Pinned([string]$Url, [string]$File, [string]$Sha256) {
     Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile "$path.part"
     Move-Item "$path.part" $path
   }
-  $actual = (Get-FileHash -Algorithm SHA256 $path).Hash.ToLowerInvariant()
+  $hasher = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $stream = [System.IO.File]::OpenRead($path)
+    try { $actual = [System.BitConverter]::ToString($hasher.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+    finally { $stream.Dispose() }
+  } finally { $hasher.Dispose() }
   if ($actual -ne $Sha256) { throw "$File does not match its SHA-256 pin $Sha256 ($actual)" }
   return $path
 }
@@ -140,7 +148,8 @@ Write-Host "== vcpkg: the manifest's libraries ($Triplet)"
 # The same manifest and baseline as Mitcad's own build, so the libraries
 # Cycles is compiled against are the ones Mitcad links.
 Invoke-Native (Join-Path $VcpkgRoot 'vcpkg.exe') @('install', "--x-manifest-root=$Repo",
-  "--x-install-root=$VcpkgInstalled", '--triplet', $Triplet, '--no-print-usage') (Join-Path $Prefix 'vcpkg.log')
+  "--x-install-root=$VcpkgInstalled", '--triplet', $Triplet, '--host-triplet', $HostTriplet,
+  '--no-print-usage') (Join-Path $Prefix 'vcpkg.log')
 $Deps = Join-Path $VcpkgInstalled $Triplet
 $DepsCMake = $Deps -replace '\\', '/'
 
@@ -244,6 +253,18 @@ if (-not (Test-Path (Join-Path $cyclesSrc '.git'))) {
 }
 $head = (& git.exe -C $cyclesSrc rev-parse HEAD).Trim()
 if ($head -ne $Pins.CYCLES_COMMIT) { throw "Cycles v$($Pins.CYCLES_VERSION) is not at the pinned commit $($Pins.CYCLES_COMMIT)" }
+if ($env:MITCAD_MSVC_ARCH -eq 'arm64') {
+  # MSVC spells ARM NEON intrinsics as macros. Commas in Cycles' compound
+  # vector arguments split those macro arguments, so name the vectors first.
+  $halfPatch = Join-Path $Repo 'third_party\cycles\windows-arm64-half-intrinsics.patch'
+  & cmd.exe /d /c "git -C `"$cyclesSrc`" apply --reverse --check `"$halfPatch`" 2>nul"
+  if ($LASTEXITCODE -ne 0) {
+    & git.exe -C $cyclesSrc apply --check $halfPatch
+    if ($LASTEXITCODE -ne 0) { throw 'The pinned Cycles source does not match the Windows ARM64 half-intrinsics patch.' }
+    & git.exe -C $cyclesSrc apply $halfPatch
+    if ($LASTEXITCODE -ne 0) { throw 'Could not apply the Windows ARM64 half-intrinsics patch.' }
+  }
+}
 $cyclesInstall = Join-Path $Install 'cycles'
 $cyclesBuild = Join-Path $Build 'cycles'
 $cyclesDone = Join-Path $cyclesInstall ".done-$($Pins.CYCLES_VERSION)"
@@ -266,15 +287,16 @@ if ($Optix) {
 }
 if (-not (Test-Path $cyclesDone)) {
   Remove-Item -Force (Join-Path $cyclesInstall '.done-*') -ErrorAction SilentlyContinue
-  # The CPU device with Embree and Open Image Denoise, and CUDA when asked
-  # for; no OSL, USD, Alembic, OpenVDB or OpenSubdiv, no precompiled
+  # The CPU device with Embree where it supports the target architecture,
+  # Open Image Denoise and CUDA when asked for; no OSL, USD, Alembic,
+  # OpenVDB or OpenSubdiv, no precompiled
   # libraries (vcpkg's instead). The standalone program is built too: it
   # renders Cycles' XML scenes, a check of the build without Mitcad.
   $oidnCMake = $oidnInstall -replace '\\', '/'
   $cyclesArgs = @('-S', $cyclesSrc, '-B', $cyclesBuild, '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
     "-DCMAKE_PREFIX_PATH=$DepsCMake;$oidnCMake", "-DCMAKE_INSTALL_PREFIX=$cyclesBuild/install",
     '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON', '-DWITH_LIBS_PRECOMPILED=OFF',
-    '-DWITH_CYCLES_EMBREE=ON', '-DWITH_CYCLES_OPENIMAGEDENOISE=ON',
+    "-DWITH_CYCLES_EMBREE=$CyclesEmbree", '-DWITH_CYCLES_OPENIMAGEDENOISE=ON',
     '-DWITH_CYCLES_ALEMBIC=OFF', '-DWITH_CYCLES_OPENSUBDIV=OFF', '-DWITH_CYCLES_OPENVDB=OFF',
     '-DWITH_CYCLES_NANOVDB=OFF', '-DWITH_CYCLES_OSL=OFF', '-DWITH_CYCLES_USD=OFF',
     '-DWITH_CYCLES_HYDRA_RENDER_DELEGATE=OFF', '-DWITH_CYCLES_LOGGING=OFF',
@@ -282,11 +304,16 @@ if (-not (Test-Path $cyclesDone)) {
     '-DWITH_CYCLES_DEVICE_OPTIX=OFF', '-DWITH_CYCLES_DEVICE_HIP=OFF',
     '-DWITH_CYCLES_DEVICE_HIPRT=OFF', '-DWITH_CYCLES_DEVICE_METAL=OFF', '-DWITH_CYCLES_DEVICE_ONEAPI=OFF') +
     $cyclesGpuArgs + @(
-    "-DEMBREE_ROOT_DIR=$DepsCMake", "-DTBB_ROOT_DIR=$DepsCMake", "-DOPENIMAGEDENOISE_ROOT_DIR=$oidnCMake",
+    "-DTBB_ROOT_DIR=$DepsCMake", "-DOPENIMAGEDENOISE_ROOT_DIR=$oidnCMake",
     # Cycles looks for tbb.lib; oneTBB's Windows library carries its
     # interface version.
     "-DTBB_LIBRARY=$DepsCMake/lib/tbb12.lib",
     "-DZSTD_ROOT_DIR=$DepsCMake", "-DPUGIXML_ROOT_DIR=$DepsCMake")
+  if ($CyclesEmbree -eq 'ON') { $cyclesArgs += "-DEMBREE_ROOT_DIR=$DepsCMake" }
+  if (Test-Path (Join-Path $Deps 'include\sse2neon\sse2neon.h')) {
+    $cyclesArgs += "-DSSE2NEON_ROOT_DIR=$DepsCMake/include/sse2neon"
+    if ($env:MITCAD_MSVC_ARCH -eq 'arm64') { $env:CL = ($env:CL + ' /Zc:preprocessor').Trim() }
+  }
   Invoke-Native cmake.exe $cyclesArgs (Join-Path $Prefix 'cycles-configure.log')
   $started = Get-Date
   # Programs built and run during the build (the CUDA kernels' compressor
@@ -388,12 +415,14 @@ foreach ($l in Get-ChildItem (Join-Path $cyclesInstall 'lib') -Filter '*.lib' | 
 $out.Add(')')
 Set-Content -Encoding ascii (Join-Path $cyclesInstall 'mitcad-cycles.cmake') $out
 
-Write-Host "== Check: Cycles' standalone program renders a test scene"
-$check = Join-Path $Build 'check'
-New-Item -ItemType Directory -Force $check | Out-Null
-$env:Path = (Join-Path $Deps 'bin') + ';' + (Join-Path $oidnInstall 'bin') + ';' + $env:Path
-Invoke-Native (Join-Path $cyclesBuild 'bin\cycles.exe') @('--background', '--quiet', '--samples', '4',
-  '--width', '64', '--height', '48', '--output', (Join-Path $check 'scene.png'),
-  (Join-Path $cyclesSrc 'examples\scene_cube_surface.xml'))
-if ((Get-Item (Join-Path $check 'scene.png')).Length -eq 0) { throw 'The test scene rendered an empty image' }
+if (-not $SkipRenderCheck) {
+  Write-Host "== Check: Cycles' standalone program renders a test scene"
+  $check = Join-Path $Build 'check'
+  New-Item -ItemType Directory -Force $check | Out-Null
+  $env:Path = (Join-Path $Deps 'bin') + ';' + (Join-Path $oidnInstall 'bin') + ';' + $env:Path
+  Invoke-Native (Join-Path $cyclesBuild 'bin\cycles.exe') @('--background', '--quiet', '--samples', '4',
+    '--width', '64', '--height', '48', '--output', (Join-Path $check 'scene.png'),
+    (Join-Path $cyclesSrc 'examples\scene_cube_surface.xml'))
+  if ((Get-Item (Join-Path $check 'scene.png')).Length -eq 0) { throw 'The test scene rendered an empty image' }
+}
 Write-Host "Done: Mitcad's configure takes the renderer's libraries from $Prefix (MITCAD_RENDER_DEPS)"

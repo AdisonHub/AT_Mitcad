@@ -135,7 +135,16 @@ message(STATUS "Cycles devices: ${MITCAD_CYCLES_DEVICES} (${mitcad_cycles_kernel
 
 find_package(OpenImageIO CONFIG REQUIRED)
 find_package(OpenColorIO CONFIG REQUIRED)
-find_package(embree 4 CONFIG REQUIRED)
+# Embree 4.4 does not support Windows on ARM64. Cycles still has its own CPU
+# BVH, which MitCad uses there while its other Windows and macOS/Linux builds
+# retain Embree.
+set(mitcad_render_embree embree)
+if(WIN32 AND (CMAKE_SYSTEM_PROCESSOR MATCHES "^(ARM64|arm64|aarch64)$" OR
+              CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "ARM64"))
+  set(mitcad_render_embree "")
+else()
+  find_package(embree 4 CONFIG REQUIRED)
+endif()
 find_package(TBB CONFIG REQUIRED)
 find_package(zstd CONFIG REQUIRED)
 find_package(pugixml CONFIG REQUIRED)
@@ -229,7 +238,7 @@ else()
 endif()
 target_link_libraries(mitcad_cycles_renderer
   PUBLIC ${mitcad_cycles_link}
-         OpenImageIO::OpenImageIO OpenColorIO::OpenColorIO embree TBB::tbb ${mitcad_zstd}
+         OpenImageIO::OpenImageIO OpenColorIO::OpenColorIO ${mitcad_render_embree} TBB::tbb ${mitcad_zstd}
          pugixml::pugixml OpenImageDenoise Threads::Threads ${CMAKE_DL_LIBS}
   PRIVATE mitcad_warnings)
 if(APPLE)

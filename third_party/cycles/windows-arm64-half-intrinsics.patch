@@ -1,0 +1,36 @@
+diff --git a/src/util/half.h b/src/util/half.h
+index 0000000..1111111 100644
+--- a/src/util/half.h
++++ b/src/util/half.h
+@@ -209,8 +209,9 @@ ccl_device_inline half4 float4_to_half4(const float4 f)
+   return {__float2half(f.x), __float2half(f.y), __float2half(f.z), __float2half(f.w)};
+ #elif defined(__ARM_NEON) || defined(_M_ARM64)
+   half4 r;
++  const float32x4_t value = vld1q_f32(&f.x);
+   vst1_u16(reinterpret_cast<uint16_t *>(&r),
+-           vreinterpret_u16_f16(vcvt_f16_f32(float32x4_t{f.x, f.y, f.z, f.w})));
++           vreinterpret_u16_f16(vcvt_f16_f32(value)));
+   return r;
+ #elif defined(__KERNEL_SSE__) && defined(__F16C__)
+   half4 r;
+@@ -249,7 +250,8 @@ ccl_device_inline half3 float3_to_half3(const float3 f)
+ #if defined(__KERNEL_GPU__)
+   return {float_to_half(f.x), float_to_half(f.y), float_to_half(f.z)};
+ #elif defined(__ARM_NEON) || defined(_M_ARM64)
+-  const uint16x4_t h = vreinterpret_u16_f16(vcvt_f16_f32(float32x4_t{f.x, f.y, f.z, 0.0f}));
++  const float values[4] = {f.x, f.y, f.z, 0.0f};
++  const uint16x4_t h = vreinterpret_u16_f16(vcvt_f16_f32(vld1q_f32(values)));
+   return {half(vget_lane_u16(h, 0)), half(vget_lane_u16(h, 1)), half(vget_lane_u16(h, 2))};
+ #elif defined(__KERNEL_SSE__) && defined(__F16C__)
+   const __m128i h = _mm_cvtps_ph(_mm_set_ps(0.0f, f.z, f.y, f.x),
+@@ -269,8 +271,8 @@ ccl_device_inline float3 half3_to_float3(const half3 h)
+ #if defined(__KERNEL_GPU__)
+   return make_float3(half_to_float(h.x), half_to_float(h.y), half_to_float(h.z));
+ #elif defined(__ARM_NEON) || defined(_M_ARM64)
+-  const float32x4_t f = vcvt_f32_f16(
+-      vreinterpret_f16_u16(uint16x4_t{uint16_t(h.x), uint16_t(h.y), uint16_t(h.z), 0}));
++  const uint16_t values[4] = {uint16_t(h.x), uint16_t(h.y), uint16_t(h.z), 0};
++  const float32x4_t f = vcvt_f32_f16(vreinterpret_f16_u16(vld1_u16(values)));
+   return make_float3(vgetq_lane_f32(f, 0), vgetq_lane_f32(f, 1), vgetq_lane_f32(f, 2));
+ #elif defined(__KERNEL_SSE__) && defined(__F16C__)
+   const __m128i v = _mm_set_epi16(0, 0, 0, 0, 0, uint16_t(h.z), uint16_t(h.y), uint16_t(h.x));

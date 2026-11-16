@@ -66,7 +66,7 @@ struct UpdateSource {
   // build MITCAD_TEST_VERSION (never passed on to the MitCad an update
   // starts).
   QString currentVersion;
-  // The manifest's name of this build's platform: "windows-x64",
+  // The manifest's name of this build's platform: "windows-x64" or "windows-arm64",
   // "linux-x64", ..., or empty (announce only).
   QString platform;
   // The tests' variables set (not empty) in the environment, which a test

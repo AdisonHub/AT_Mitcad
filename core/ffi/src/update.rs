@@ -13,7 +13,7 @@ mod ffi {
         /// Reads a manifest file, verifies its signature with `keys` (public
         /// keys in hex, separated by white space; none refuses every
         /// manifest), and tells what it offers version `current` of
-        /// `platform` ("windows-x64", "linux-x64") on the channel, the
+        /// `platform` ("windows-x64", "windows-arm64", "linux-x64") on the channel, the
         /// skipped version (or "") set apart: JSON {"status": "available" |
         /// "skipped" | "current", "version", "date", "expires" (or null),
         /// "expired" (a newer version whose manifest expired: status

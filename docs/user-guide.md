@@ -427,8 +427,8 @@ Each release on GitHub has these files:
 
 | File | Content |
 |---|---|
-| `mitcad-<version>-windows-x64.exe` | The Windows installer |
-| `mitcad-<version>-windows-x64.zip` | The portable `.zip` for Windows |
+| `mitcad-<version>-windows-x64.exe` or `mitcad-<version>-windows-arm64.exe` | The Windows installer |
+| `mitcad-<version>-windows-x64.zip` or `mitcad-<version>-windows-arm64.zip` | The portable `.zip` for Windows |
 | `Mitcad-<version>-x86_64.AppImage` | The Linux AppImage |
 | `Mitcad-<version>-macos-arm64.dmg` | The macOS application disk image |
 | `update-manifest.json` | The signed manifest for automatic updates |
@@ -11929,8 +11929,9 @@ component, or into the new component named after the file ([Import](#import)).
 own. Use it to get parts from the sites that you use: a supplier's
 catalog, a model library or your own server. When you download a model
 there, MitCad brings it into the open design as a component. The first
-use downloads the browser ([The web browser
-component](#the-web-browser-component)).
+use downloads the browser ([The web browser component](#the-web-browser-component)).
+
+The Windows ARM64 build does not include this optional component.
 
 The window has these controls:
 

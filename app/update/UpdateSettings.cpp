@@ -32,6 +32,8 @@ const char* const kTestVariables[] = {"MITCAD_UPDATE_URL", "MITCAD_UPDATE_RELEAS
 QString platformName() {
 #if defined(_WIN32) && (defined(_M_X64) || defined(__x86_64__))
   return QStringLiteral("windows-x64");
+#elif defined(_WIN32) && (defined(_M_ARM64) || defined(__aarch64__))
+  return QStringLiteral("windows-arm64");
 #elif defined(__linux__) && defined(__x86_64__)
   return QStringLiteral("linux-x64");
 #elif defined(__linux__) && defined(__aarch64__)

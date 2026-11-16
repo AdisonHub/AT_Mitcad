@@ -63,7 +63,7 @@
       "name": "windows",
       "hidden": true,
       "inherits": "base",
-      "description": "Needs the MSVC environment, e.g. tools\\dev-env\\msvc.cmd cmake --preset ...",
+      "description": "Needs the MSVC environment (x64: tools\\dev-env\\msvc.cmd; ARM64: set MITCAD_MSVC_ARCH=arm64 first).",
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-windows",
         "CMAKE_C_COMPILER": "cl",
@@ -76,6 +76,19 @@
       "displayName": "Windows Release",
       "inherits": "windows",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo", "MITCAD_UPDATE_TEST_HOOKS": "OFF" }
+    },
+    {
+      "name": "windows-arm64-release",
+      "displayName": "Windows ARM64 Release",
+      "inherits": "windows",
+      "environment": { "CL": "/Zc:preprocessor" },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "MITCAD_UPDATE_TEST_HOOKS": "OFF",
+        "MITCAD_BROWSER_COMPONENT": "OFF",
+        "VCPKG_TARGET_TRIPLET": "arm64-windows",
+        "VCPKG_HOST_TRIPLET": "arm64-windows"
+      }
     }
   ],
   "buildPresets": [
@@ -83,7 +96,8 @@
     { "name": "linux-release", "configurePreset": "linux-release" },
     { "name": "macos-debug", "configurePreset": "macos-debug" },
     { "name": "macos-release", "configurePreset": "macos-release" },
-    { "name": "windows-release", "configurePreset": "windows-release" }
+    { "name": "windows-release", "configurePreset": "windows-release" },
+    { "name": "windows-arm64-release", "configurePreset": "windows-arm64-release" }
   ],
   "testPresets": [
     {
@@ -109,6 +123,11 @@
     {
       "name": "windows-release",
       "configurePreset": "windows-release",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "windows-arm64-release",
+      "configurePreset": "windows-arm64-release",
       "output": { "outputOnFailure": true }
     }
   ]

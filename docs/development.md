@@ -620,8 +620,9 @@ tools\dev-env\msvc.cmd cmake --build --preset dev --target package
 powershell -ExecutionPolicy Bypass -File tools\installer-windows-test.ps1 -MesaDir C:\dev\mesa\bin
 ```
 
-`package` writes `mitcad-<version>-windows-x64.exe` (NSIS 3) and the same
-files as a `.zip`. The installer script is our own,
+`package` writes `mitcad-<version>-windows-x64.exe` (NSIS 3), or
+`mitcad-<version>-windows-arm64.exe` with the `windows-arm64-release`
+preset, and the same files as a `.zip`. The installer script is our own,
 [packaging/windows/NSIS.template.in](../packaging/windows/NSIS.template.in)
 (CPack finds it through `CPACK_MODULE_PATH`). It runs as the user
 (`RequestExecutionLevel user`) and installs either
